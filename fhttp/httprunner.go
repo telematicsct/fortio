@@ -25,6 +25,8 @@ import (
 	"fortio.org/fortio/log"
 	"fortio.org/fortio/periodic"
 	"fortio.org/fortio/stats"
+
+	"github.com/telematicsct/grpc-benchmark/util"
 )
 
 // Most of the code in this file is the library-fication of code originally
@@ -74,6 +76,7 @@ type HTTPRunnerOptions struct {
 	AllowInitialErrors bool   // whether initial errors don't cause an abort
 	// Which status code cause an abort of the run (default 0 = don't abort; reminder -1 is returned for socket errors)
 	AbortOn int
+	UseDCM  bool
 }
 
 // RunHTTPTest runs an http test and returns the aggregated stats.
@@ -92,6 +95,13 @@ func RunHTTPTest(o *HTTPRunnerOptions) (*HTTPRunnerResults, error) {
 		URL:         o.URL,
 		AbortOn:     o.AbortOn,
 		aborter:     r.Options().Stop,
+	}
+	if o.UseDCM {
+		payload, err := util.GetHTTPJsonPayload()
+		if err != nil {
+			return nil, fmt.Errorf("dcm payload issue %v", err)
+		}
+		o.HTTPOptions.Payload = []byte(payload)
 	}
 	httpstate := make([]HTTPRunnerResults, numThreads)
 	for i := 0; i < numThreads; i++ {

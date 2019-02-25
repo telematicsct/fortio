@@ -60,7 +60,10 @@
     <input type="checkbox" name="grpc-secure" /> grpc secure transport (tls):  <br />
     <input type="checkbox" name="ping" /> using ping backend: ,
     ping delay: <input type="text" name="grpc-ping-delay" size="6" value="0" />) <br />
-    <input type="checkbox" name="ping" /> using DCM backend: , <br />
+    <input type="checkbox" name="dcm" checked /> using DCM backend: , <br />
+    CA Cert: <input type="text" name="cacert" size=40 value="certs/ca.crt" /> <br />
+    Client Cert: <input type="text" name="clientCert" size=40 value="certs/client.crt" /> <br />
+    Client Key: <input type="text" name="clientKey" size=40 value="certs/client.key" /> <br />
     Output: <input type="checkbox" name="json" /> JSON, <input type="checkbox" name="save" checked /> SAVE 
     <br />
     <input type="submit" name="load" value="Start"/>

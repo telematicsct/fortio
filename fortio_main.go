@@ -95,7 +95,9 @@ var (
 	caCertFlag        = flag.String("cacert", "",
 		"`Path` to a custom CA certificate file to be used for the GRPC client TLS, "+
 			"if empty, use https:// prefix for standard internet CAs TLS")
-	echoPortFlag = flag.String("http-port", "8080",
+	clientCertFlag = flag.String("client-cert", "", "`Path` to the certificate file to be used for GRPC client TLS")
+	clientKeyFlag  = flag.String("client-key", "", "`Path` to the key file to be used for GRPC client TLS")
+	echoPortFlag   = flag.String("http-port", "8080",
 		"http echo server port. Can be in the form of host:port, ip:port, port or /unix/domain/path.")
 	grpcPortFlag = flag.String("grpc-port", fnet.DefaultGRPCPort,
 		"grpc server port. Can be in the form of host:port, ip:port or port or /unix/domain/path or \""+disabled+
@@ -113,7 +115,7 @@ var (
 	proxiesFlags  proxiesFlagList
 	proxies       = make([]string, 0)
 
-	defaultDataDir = "."
+	defaultDataDir = "data"
 
 	allowInitialErrorsFlag = flag.Bool("allow-initial-errors", false, "Allow and don't abort on initial warmup errors")
 	abortOnFlag            = flag.Int("abort-on", 0, "Http code that if encountered aborts the run. e.g. 503 or -1 for socket errors.")
@@ -231,6 +233,15 @@ func fortioLoad(justCurl bool, percList []float64) {
 		usageErr("Error: fortio load/curl needs a url or destination")
 	}
 	httpOpts := bincommon.SharedHTTPOptions()
+	if len(*caCertFlag) != 0 {
+		httpOpts.CACert = *caCertFlag
+	}
+	if len(*clientCertFlag) != 0 {
+		httpOpts.ClientCert = *clientCertFlag
+	}
+	if len(*clientKeyFlag) != 0 {
+		httpOpts.ClientKey = *clientKeyFlag
+	}
 	if *httpsInsecureFlag {
 		httpOpts.Insecure = true
 	}
@@ -288,6 +299,8 @@ func fortioLoad(justCurl bool, percList []float64) {
 			RunnerOptions:      ro,
 			Destination:        url,
 			CACert:             *caCertFlag,
+			ClientCert:         *clientCertFlag,
+			ClientKey:          *clientKeyFlag,
 			Service:            *healthSvcFlag,
 			Streams:            *streamsFlag,
 			AllowInitialErrors: *allowInitialErrorsFlag,
@@ -305,6 +318,7 @@ func fortioLoad(justCurl bool, percList []float64) {
 			Profiler:           *profileFlag,
 			AllowInitialErrors: *allowInitialErrorsFlag,
 			AbortOn:            *abortOnFlag,
+			UseDCM:             *doDCMLoadFlag,
 		}
 		res, err = fhttp.RunHTTPTest(&o)
 	}

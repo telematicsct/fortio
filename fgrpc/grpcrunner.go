@@ -16,7 +16,11 @@ package fgrpc // import "fortio.org/fortio/fgrpc"
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
@@ -43,6 +47,29 @@ import (
 func Dial(o *GRPCRunnerOptions) (conn *grpc.ClientConn, err error) {
 	var opts []grpc.DialOption
 	switch {
+	case o.ClientCert != "":
+		certificate, err := tls.LoadX509KeyPair(o.ClientCert, o.ClientKey)
+		if err != nil {
+			return nil, err
+		}
+		var certPool *x509.CertPool
+		if len(o.CACert) != 0 {
+			certPool = x509.NewCertPool()
+			bs, err := ioutil.ReadFile(o.CACert)
+			if err != nil {
+				return nil, err
+			}
+			ok := certPool.AppendCertsFromPEM(bs)
+			if !ok {
+				return nil, errors.New("failed to append certs")
+			}
+		}
+		transportCreds := credentials.NewTLS(&tls.Config{
+			ServerName:   o.CertOverride,
+			Certificates: []tls.Certificate{certificate},
+			RootCAs:      certPool,
+		})
+		opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 	case o.CACert != "":
 		var creds credentials.TransportCredentials
 		creds, err = credentials.NewClientTLSFromFile(o.CACert, o.CertOverride)
@@ -101,7 +128,6 @@ func (grpcstate *GRPCRunnerResults) Run(t int) {
 	if grpcstate.Ping {
 		res, err = grpcstate.clientP.Ping(context.Background(), &grpcstate.reqP)
 	} else if grpcstate.DCM {
-		// DCM: Custom
 		res, err = grpcstate.clientDCM.DiagnosticData(context.Background(), grpcstate.reqDCM)
 	} else {
 		var r *grpc_health_v1.HealthCheckResponse
@@ -132,6 +158,8 @@ type GRPCRunnerOptions struct {
 	Delay              time.Duration // Delay to be sent when using grpc ping service
 	CACert             string        // Path to CA certificate for grpc TLS
 	CertOverride       string        // Override the cert virtual host of authority for testing
+	ClientCert         string        // Path to client cert
+	ClientKey          string        // Path to client key
 	AllowInitialErrors bool          // whether initial errors don't cause an abort
 	UsePing            bool          // use our own Ping proto for grpc load instead of standard health check one.
 	UseDCM             bool          // use DCM
@@ -202,8 +230,7 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 				_, err = grpcstate[i].clientP.Ping(context.Background(), &grpcstate[i].reqP)
 			}
 		} else if o.UseDCM {
-			// TODO: Custom
-			c, err := util.NewDCMServiceClient()
+			c, err := util.NewDCMServiceClientFromConn(conn)
 			if err != nil {
 				return nil, err
 			}

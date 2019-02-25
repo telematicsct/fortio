@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -176,6 +177,10 @@ type HTTPOptions struct {
 	Payload         []byte // body for http request, implies POST if not empty.
 
 	UnixDomainSocket string // Path of unix domain socket to use instead of host:port from URL
+
+	CACert     string
+	ClientCert string
+	ClientKey  string
 }
 
 // ResetHeaders resets all the headers, including the User-Agent: one (and the Host: logical special header).
@@ -362,6 +367,35 @@ func NewClient(o *HTTPOptions) Fetcher {
 	return NewFastClient(o)
 }
 
+func getTLSConfig(o *HTTPOptions) *tls.Config {
+	if o.Insecure {
+		log.LogVf("using insecure https")
+		if o.CACert != "" || o.ClientCert != "" {
+			log.LogVf("although CACert or ClientCert flag are set, using insecure https as insecure flag is set.")
+		}
+		return &tls.Config{InsecureSkipVerify: true}
+	}
+	if o.CACert != "" || o.ClientCert != "" {
+		caCert, err := ioutil.ReadFile(o.CACert)
+		if err != nil {
+			log.Warnf("Error loading cacert %v", err)
+		}
+
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		cert, err := tls.LoadX509KeyPair(o.ClientCert, o.ClientKey)
+		if err != nil {
+			log.Warnf("cert load err %v", err)
+		}
+
+		return &tls.Config{
+			RootCAs:      caCertPool,
+			Certificates: []tls.Certificate{cert},
+		}
+	}
+	return &tls.Config{}
+}
+
 // NewStdClient creates a client object that wraps the net/http standard client.
 func NewStdClient(o *HTTPOptions) *Client {
 	o.Init(o.URL) // also normalizes NumConnections etc to be valid.
@@ -380,10 +414,10 @@ func NewStdClient(o *HTTPOptions) *Client {
 		}).Dial,
 		TLSHandshakeTimeout: o.HTTPReqTimeOut,
 	}
-	if o.Insecure && o.https {
-		log.LogVf("using insecure https")
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // nolint: gas
+	if o.https {
+		tr.TLSClientConfig = getTLSConfig(o) // nolint: gas
 	}
+
 	client := Client{
 		url: o.URL,
 		req: req,

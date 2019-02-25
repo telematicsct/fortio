@@ -154,8 +154,11 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	durStr := r.FormValue("t")
 	grpcSecure := (r.FormValue("grpc-secure") == "on")
 	grpcPing := (r.FormValue("ping") == "on")
-	grpcDCM := (r.FormValue("dcm") == "on")
+	useDCM := (r.FormValue("dcm") == "on")
 	grpcPingDelay, _ := time.ParseDuration(r.FormValue("grpc-ping-delay"))
+	caCert := r.FormValue("cacert")
+	clientCert := r.FormValue("clientCert")
+	clientKey := r.FormValue("clientKey")
 
 	stdClient := (r.FormValue("stdclient") == "on")
 	var dur time.Duration
@@ -204,7 +207,18 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		log.Infof("New run id %d", runid)
 	}
 	httpopts := fhttp.NewHTTPOptions(url)
-	httpopts.DisableFastClient = stdClient
+	if !httpopts.DisableFastClient {
+		httpopts.DisableFastClient = stdClient
+	}
+	if len(caCert) != 0 {
+		httpopts.CACert = caCert
+	}
+	if len(clientCert) != 0 {
+		httpopts.ClientCert = clientCert
+	}
+	if len(clientKey) != 0 {
+		httpopts.ClientKey = clientKey
+	}
 	if !JSONOnly {
 		// Normal html mode
 		if mainTemplate == nil {
@@ -296,7 +310,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				Destination:   url,
 				UsePing:       grpcPing,
 				Delay:         grpcPingDelay,
-				UseDCM:        grpcDCM,
+				UseDCM:        useDCM,
+				CACert:        caCert,
+				ClientCert:    clientCert,
+				ClientKey:     clientKey,
 			}
 			if grpcSecure {
 				o.Destination = fhttp.AddHTTPS(url)
@@ -307,6 +324,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				HTTPOptions:        *httpopts,
 				RunnerOptions:      ro,
 				AllowInitialErrors: true,
+				UseDCM:             useDCM,
 			}
 			res, err = fhttp.RunHTTPTest(&o)
 		}
