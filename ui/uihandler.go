@@ -154,6 +154,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	durStr := r.FormValue("t")
 	grpcSecure := (r.FormValue("grpc-secure") == "on")
 	grpcPing := (r.FormValue("ping") == "on")
+	grpcDCM := (r.FormValue("dcm") == "on")
 	grpcPingDelay, _ := time.ParseDuration(r.FormValue("grpc-ping-delay"))
 
 	stdClient := (r.FormValue("stdclient") == "on")
@@ -295,6 +296,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				Destination:   url,
 				UsePing:       grpcPing,
 				Delay:         grpcPingDelay,
+				UseDCM:        grpcDCM,
 			}
 			if grpcSecure {
 				o.Destination = fhttp.AddHTTPS(url)

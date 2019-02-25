@@ -54,14 +54,15 @@
     <input type="text" name="H" size=40 value="" /> <br />
     <button type="button" onclick="addCustomHeader()">+</button>
     <br />
-    Use standard go client instead of fastclient <input type="checkbox" name="stdclient"/> <br />
-    Load using http: <input type="radio" name="runner" value="http" checked/> or
-    grpc: <input type="radio" name="runner" value="grpc"/>
-    (grpc secure transport (tls): <input type="checkbox" name="grpc-secure" />,
-    using ping backend: <input type="checkbox" name="ping" />,
+    <input type="checkbox" name="stdclient"/> Use standard go client instead of fastclient  <br />
+    Load using  <br /><input type="radio" name="runner" value="http" checked/> http  <br />
+    <input type="radio" name="runner" value="grpc"/> grpc  <br />
+    <input type="checkbox" name="grpc-secure" /> grpc secure transport (tls):  <br />
+    <input type="checkbox" name="ping" /> using ping backend: ,
     ping delay: <input type="text" name="grpc-ping-delay" size="6" value="0" />) <br />
-    JSON output: <input type="checkbox" name="json" />,
-    Save output: <input type="checkbox" name="save" checked /> <br />
+    <input type="checkbox" name="ping" /> using DCM backend: , <br />
+    Output: <input type="checkbox" name="json" /> JSON, <input type="checkbox" name="save" checked /> SAVE 
+    <br />
     <input type="submit" name="load" value="Start"/>
   </div>
 </form>

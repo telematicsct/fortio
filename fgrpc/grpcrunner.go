@@ -32,6 +32,9 @@ import (
 	"fortio.org/fortio/fnet"
 	"fortio.org/fortio/log"
 	"fortio.org/fortio/periodic"
+
+	"github.com/telematicsct/grpc-benchmark/dcm"
+	"github.com/telematicsct/grpc-benchmark/util"
 )
 
 // Dial dials grpc using insecure or tls transport security when serverAddr
@@ -75,14 +78,17 @@ func Dial(o *GRPCRunnerOptions) (conn *grpc.ClientConn, err error) {
 // Also is the internal type used per thread/goroutine.
 type GRPCRunnerResults struct {
 	periodic.RunnerResults
-	clientH     grpc_health_v1.HealthClient
+	clientH     grpc_health_v1.HealthClient // Health
 	reqH        grpc_health_v1.HealthCheckRequest
-	clientP     PingServerClient
+	clientP     PingServerClient // PING
 	reqP        PingMessage
+	clientDCM   dcm.DCMServiceClient // DCM
+	reqDCM      *dcm.DiagRecorderData
 	RetCodes    HealthResultMap
 	Destination string
 	Streams     int
 	Ping        bool
+	DCM         bool
 }
 
 // Run exercises GRPC health check or ping at the target QPS.
@@ -94,6 +100,9 @@ func (grpcstate *GRPCRunnerResults) Run(t int) {
 	status := grpc_health_v1.HealthCheckResponse_SERVING
 	if grpcstate.Ping {
 		res, err = grpcstate.clientP.Ping(context.Background(), &grpcstate.reqP)
+	} else if grpcstate.DCM {
+		// DCM: Custom
+		res, err = grpcstate.clientDCM.DiagnosticData(context.Background(), grpcstate.reqDCM)
 	} else {
 		var r *grpc_health_v1.HealthCheckResponse
 		r, err = grpcstate.clientH.Check(context.Background(), &grpcstate.reqH)
@@ -125,6 +134,7 @@ type GRPCRunnerOptions struct {
 	CertOverride       string        // Override the cert virtual host of authority for testing
 	AllowInitialErrors bool          // whether initial errors don't cause an abort
 	UsePing            bool          // use our own Ping proto for grpc load instead of standard health check one.
+	UseDCM             bool          // use DCM
 	UnixDomainSocket   string        // unix domain socket path to use for physical connection instead of Destination
 }
 
@@ -142,6 +152,8 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 		if o.Delay > 0 {
 			o.RunType += fmt.Sprintf(" Delay=%v", o.Delay)
 		}
+	} else if o.UseDCM {
+		o.RunType = "GRPC DCM"
 	} else {
 		o.RunType = "GRPC Health"
 	}
@@ -159,6 +171,7 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 		Destination: o.Destination,
 		Streams:     o.Streams,
 		Ping:        o.UsePing,
+		DCM:         o.UseDCM,
 	}
 	grpcstate := make([]GRPCRunnerResults, numThreads)
 	out := r.Options().Out // Important as the default value is set from nil to stdout inside NewPeriodicRunner
@@ -177,6 +190,7 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 			log.Debugf("Reusing previous client connection for %d", i)
 		}
 		grpcstate[i].Ping = o.UsePing
+		grpcstate[i].DCM = o.UseDCM
 		var err error
 		if o.UsePing {
 			grpcstate[i].clientP = NewPingServerClient(conn)
@@ -186,6 +200,24 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 			grpcstate[i].reqP = PingMessage{Payload: o.Payload, DelayNanos: o.Delay.Nanoseconds(), Seq: int64(i), Ts: ts}
 			if o.Exactly <= 0 {
 				_, err = grpcstate[i].clientP.Ping(context.Background(), &grpcstate[i].reqP)
+			}
+		} else if o.UseDCM {
+			// TODO: Custom
+			c, err := util.NewDCMServiceClient()
+			if err != nil {
+				return nil, err
+			}
+			data, err := util.NewDiagRecorderData()
+			if err != nil {
+				return nil, err
+			}
+			grpcstate[i].clientDCM = c
+			if grpcstate[i].clientDCM == nil {
+				return nil, fmt.Errorf("unable to create custom client %d for %s", i, o.Destination)
+			}
+			grpcstate[i].reqDCM = data
+			if o.Exactly <= 0 {
+				_, err = grpcstate[i].clientDCM.DiagnosticData(context.Background(), grpcstate[i].reqDCM)
 			}
 		} else {
 			grpcstate[i].clientH = grpc_health_v1.NewHealthClient(conn)
@@ -198,7 +230,7 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 			}
 		}
 		if !o.AllowInitialErrors && err != nil {
-			log.Errf("Error in first grpc call (ping = %v) for %s: %v", o.UsePing, o.Destination, err)
+			log.Errf("Error in first grpc call (ping = %v),(dcm = %v) for %s: %v", o.UsePing, o.UseDCM, o.Destination, err)
 			return nil, err
 		}
 		// Setup the stats for each 'thread'
@@ -245,6 +277,9 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 	if o.UsePing {
 		which = "Ping"
 	}
+	if o.UseDCM {
+		which = "DCM"
+	}
 	for _, k := range keys {
 		_, _ = fmt.Fprintf(out, "%s %s : %d\n", which, k, total.RetCodes[k])
 	}
@@ -266,11 +301,21 @@ func grpcDestination(dest string) (parsedDest string) {
 	case strings.HasPrefix(dest, fnet.PrefixHTTP):
 		parsedDest = strings.TrimSuffix(strings.Replace(dest, fnet.PrefixHTTP, "", 1), "/")
 		port = fnet.StandardHTTPPort
+		if strings.Contains(parsedDest, ":") {
+			parts := strings.Split(parsedDest, ":")
+			parsedDest = parts[0]
+			port = parts[1]
+		}
 		log.Infof("stripping http scheme. grpc destination: %v: grpc port: %s",
 			parsedDest, port)
 	case strings.HasPrefix(dest, fnet.PrefixHTTPS):
 		parsedDest = strings.TrimSuffix(strings.Replace(dest, fnet.PrefixHTTPS, "", 1), "/")
 		port = fnet.StandardHTTPSPort
+		if strings.Contains(parsedDest, ":") {
+			parts := strings.Split(parsedDest, ":")
+			parsedDest = parts[0]
+			port = parts[1]
+		}
 		log.Infof("stripping https scheme. grpc destination: %v. grpc port: %s",
 			parsedDest, port)
 	default:
