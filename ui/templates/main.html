@@ -39,7 +39,7 @@
     Title/Labels: <input type="text" name="labels" size="40" value="Fortio" /> (empty to skip title)<br />
     URL: <input type="text" name="url" size="80" value="http://{{.URLHostPort}}/echo?delay=250us:30,5ms:5&status=503:0.5,429:1.5" /> <br />
     QPS: <input type="text" name="qps" size="6" value="1000" />
-    Duration: <input id="duration" type="text" name="t" size="6" value="3s" />
+    Duration: <input id="duration" type="text" name="t" size="6" value="5s" />
     or run until interrupted: <input type="checkbox" name="t" onchange="toggleDuration(this)" />
     or run for exactly <input type="text" name="n" size="6" value="" /> calls. <br />
     Threads/Simultaneous connections: <input type="text" name="c" size="6" value="8" /> <br />
@@ -64,6 +64,7 @@
     CA Cert: <input type="text" name="cacert" size=40 value="certs/ca.crt" /> <br />
     Client Cert: <input type="text" name="clientCert" size=40 value="certs/client.crt" /> <br />
     Client Key: <input type="text" name="clientKey" size=40 value="certs/client.key" /> <br />
+    Auth Token: <input type="text" name="authToken" size=40 value="" /> <br />
     Output: <input type="checkbox" name="json" /> JSON, <input type="checkbox" name="save" checked /> SAVE 
     <br />
     <input type="submit" name="load" value="Start"/>

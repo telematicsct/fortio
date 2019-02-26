@@ -26,7 +26,7 @@ import (
 	"fortio.org/fortio/periodic"
 	"fortio.org/fortio/stats"
 
-	"github.com/telematicsct/grpc-benchmark/util"
+	mpayload "github.com/telematicsct/grpc-benchmark/pkg/payload"
 )
 
 // Most of the code in this file is the library-fication of code originally
@@ -97,7 +97,7 @@ func RunHTTPTest(o *HTTPRunnerOptions) (*HTTPRunnerResults, error) {
 		aborter:     r.Options().Stop,
 	}
 	if o.UseDCM {
-		payload, err := util.GetHTTPJsonPayload()
+		payload, err := mpayload.GetHTTPJsonPayload()
 		if err != nil {
 			return nil, fmt.Errorf("dcm payload issue %v", err)
 		}

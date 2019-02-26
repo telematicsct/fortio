@@ -38,7 +38,8 @@ import (
 	"fortio.org/fortio/periodic"
 
 	"github.com/telematicsct/grpc-benchmark/dcm"
-	"github.com/telematicsct/grpc-benchmark/util"
+	mclient "github.com/telematicsct/grpc-benchmark/pkg/client"
+	"github.com/telematicsct/grpc-benchmark/pkg/payload"
 )
 
 // Dial dials grpc using insecure or tls transport security when serverAddr
@@ -84,6 +85,11 @@ func Dial(o *GRPCRunnerOptions) (conn *grpc.ClientConn, err error) {
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	default:
 		opts = append(opts, grpc.WithInsecure())
+	}
+	if o.AuthToken != "" {
+		if o.UseDCM {
+			opts = append(opts, grpc.WithPerRPCCredentials(mclient.NewTokenAuth(o.AuthToken)))
+		}
 	}
 	serverAddr := grpcDestination(o.Destination)
 	if o.UnixDomainSocket != "" {
@@ -164,6 +170,7 @@ type GRPCRunnerOptions struct {
 	UsePing            bool          // use our own Ping proto for grpc load instead of standard health check one.
 	UseDCM             bool          // use DCM
 	UnixDomainSocket   string        // unix domain socket path to use for physical connection instead of Destination
+	AuthToken          string        // auth token
 }
 
 // RunGRPCTest runs an http test and returns the aggregated stats.
@@ -230,11 +237,11 @@ func RunGRPCTest(o *GRPCRunnerOptions) (*GRPCRunnerResults, error) {
 				_, err = grpcstate[i].clientP.Ping(context.Background(), &grpcstate[i].reqP)
 			}
 		} else if o.UseDCM {
-			c, err := util.NewDCMServiceClientFromConn(conn)
+			c, err := mclient.NewDCMServiceClientFromConn(conn)
 			if err != nil {
 				return nil, err
 			}
-			data, err := util.NewDiagRecorderData()
+			data, err := payload.NewDiagRecorderData()
 			if err != nil {
 				return nil, err
 			}
