@@ -159,7 +159,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	caCert := r.FormValue("cacert")
 	clientCert := r.FormValue("clientCert")
 	clientKey := r.FormValue("clientKey")
-	jwtToken := r.FormValue("jwtToken")
+	authToken := r.FormValue("authToken")
 
 	stdClient := (r.FormValue("stdclient") == "on")
 	var dur time.Duration
@@ -315,15 +315,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				CACert:        caCert,
 				ClientCert:    clientCert,
 				ClientKey:     clientKey,
-				AuthToken:     jwtToken,
+				AuthToken:     authToken,
 			}
 			if grpcSecure {
 				o.Destination = fhttp.AddHTTPS(url)
 			}
 			res, err = fgrpc.RunGRPCTest(&o)
 		} else {
-			if jwtToken != "" {
-				err := httpopts.AddAndValidateExtraHeader("Authorization: " + jwtToken)
+			if useDCM && authToken != "" {
+				err := httpopts.AddAndValidateExtraHeader("Authorization: " + authToken)
 				if err != nil {
 					log.Errf("Error adding auth header: %v", err)
 				}
